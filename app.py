@@ -36,12 +36,24 @@ if api_key:
     try:
         genai.configure(api_key=api_key)
         
+        # --- 自動偵測可用模型邏輯 ---
+        available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+        # 優先順序：1.5-flash > 1.5-pro > 1.0-pro
+        selected_model = None
+        for target in ["models/gemini-1.5-flash", "models/gemini-1.5-pro", "models/gemini-pro"]:
+            if target in available_models:
+                selected_model = target
+                break
+        if not selected_model and available_models:
+            selected_model = available_models[0]
+        # -----------------------
+
         if region == "香港 (廣東話)":
             persona = "香港註冊營養師，用廣東話口語。"
         else:
             persona = "台灣專業營養師，親切自然。"
 
-        system_instruction = f"你是一位專業的{persona}。請分析飲食、估算卡路里、評分及建議。不足蛋白質加標籤 [NEED_PROTEIN]，不足纖維加 [NEED_FIBER]，營養不均加 [NEED_VITAMIN]，想食零食加 [NEED_HEALTHY_SNACK]"
+        system_instruction = f"你是一位專業的{persona}。分析飲食、估算卡路里及建議。不足蛋白質加 [NEED_PROTEIN]，不足纖維加 [NEED_FIBER]，營養不均加 [NEED_VITAMIN]，想食零食加 [NEED_HEALTHY_SNACK]"
 
         if "messages" not in st.session_state:
             st.session_state.messages = [{"role": "assistant", "content": "哈囉！今日食咗啲咩呀？"}]
@@ -59,11 +71,10 @@ if api_key:
                 st.markdown(user_input)
 
             with st.chat_message("assistant"):
-                with st.spinner("分析中..."):
+                with st.spinner(f"正在使用 {selected_model} 分析中..."):
                     try:
-                        # 嘗試用 1.5 Flash (目前最快最推薦)
-                        model = genai.GenerativeModel("gemini-1.5-flash")
-                        response = model.generate_content(f"系統指令：{system_instruction}\n用戶輸入：{user_input}")
+                        model = genai.GenerativeModel(selected_model)
+                        response = model.generate_content(f"{system_instruction}\n\n用戶輸入：{user_input}")
                         reply = response.text
                         
                         st.markdown(reply.replace("[NEED_PROTEIN]", "").replace("[NEED_FIBER]", "").replace("[NEED_VITAMIN]", "").replace("[NEED_HEALTHY_SNACK]", ""))
@@ -75,9 +86,9 @@ if api_key:
 
                         st.session_state.messages.append({"role": "assistant", "content": reply})
                     except Exception as e:
-                        st.error(f"分析失敗，請檢查 API Key 權限或稍後再試。錯誤詳情: {str(e)}")
+                        st.error(f"分析失敗。目前選擇模型: {selected_model}。原因: {str(e)}")
                 
     except Exception as e:
-        st.error(f"配置失敗: {str(e)}")
+        st.error(f"連線失敗，請檢查 API Key。原因: {str(e)}")
 else:
     st.warning("⚠️ 請在側邊欄輸入你的 Gemini API Key 以啟用服務。")
