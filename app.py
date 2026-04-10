@@ -1,4 +1,4 @@
-app.pyimport streamlit as st
+import streamlit as st
 import google.generativeai as genai
 
 st.set_page_config(page_title="AI 飲食營養助手", page_icon="🥗", layout="centered")
